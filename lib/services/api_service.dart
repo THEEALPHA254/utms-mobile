@@ -7,7 +7,7 @@ class ApiService {
   // ── Base URL — emulator uses 10.0.2.2 to reach host localhost ────────────────
   static const String _configuredBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://192.168.1.192:8000/api',
+    defaultValue: 'http://192.168.1.213:8000/api',
   );
   static String get baseUrl => _configuredBaseUrl;
 

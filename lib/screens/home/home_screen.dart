@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/notifications_provider.dart';
 import '../../services/api_service.dart';
 import '../../utils/app_theme.dart';
 import '../../widgets/app_widgets.dart';
@@ -24,16 +25,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Future<void> _load() async {
+    // Refresh unread count whenever home loads
+    ref.read(unreadCountProvider.notifier).refresh();
     try {
       final results = await Future.wait([
         apiService.getWalletBalance(),
         apiService.getMyBookings(),
       ]);
       setState(() {
-        _balance = results[0] as Map<String, dynamic>;
+        _balance  = results[0] as Map<String, dynamic>;
         final bookings = results[1] as List;
         _upcoming = bookings.where((b) => b['status'] == 'confirmed').take(3).toList();
-        _loading = false;
+        _loading  = false;
       });
     } catch (_) {
       setState(() => _loading = false);
@@ -42,12 +45,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final auth = ref.watch(authProvider);
-    final user = auth.user;
+    final auth    = ref.watch(authProvider);
+    final user    = auth.user;
     final profile = user?['student_profile'];
+    final unread  = ref.watch(unreadCountProvider).valueOrNull ?? 0;
 
     return Scaffold(
-      backgroundColor: AppTheme.surface,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: RefreshIndicator(
         color: AppTheme.maroon,
         onRefresh: _load,
@@ -59,10 +63,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               pinned: true,
               backgroundColor: AppTheme.maroon,
               actions: [
-                IconButton(
-                  icon: const Icon(Icons.notifications_outlined, color: Colors.white),
-                  onPressed: () => context.go('/home/notifications'),
-                ),
+                // Notification bell with unread dot
+                _NotificationBell(unreadCount: unread),
                 IconButton(
                   icon: const Icon(Icons.person_outline, color: Colors.white),
                   onPressed: () => context.go('/home/profile'),
@@ -109,17 +111,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               padding: const EdgeInsets.all(20),
               sliver: SliverList(
                 delegate: SliverChildListDelegate([
-                  // Wallet card
                   _buildWalletCard(),
                   const SizedBox(height: 22),
 
-                  // Quick actions
                   const SectionHeader(title: 'Quick Actions'),
                   const SizedBox(height: 12),
                   _buildQuickActions(context),
                   const SizedBox(height: 22),
 
-                  // Upcoming bookings
                   SectionHeader(
                     title: 'My Bookings',
                     action: 'See all',
@@ -128,7 +127,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   const SizedBox(height: 12),
 
                   if (_loading)
-                    const Center(child: CircularProgressIndicator(color: AppTheme.maroon))
+                    const Center(
+                        child: CircularProgressIndicator(color: AppTheme.maroon))
                   else if (_upcoming.isEmpty)
                     EmptyState(
                       icon: Icons.confirmation_number_outlined,
@@ -198,8 +198,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               foregroundColor: AppTheme.orange,
               minimumSize: const Size(0, 38),
               padding: const EdgeInsets.symmetric(horizontal: 14),
-              textStyle: const TextStyle(
-                  fontSize: 13, fontWeight: FontWeight.w600),
+              textStyle:
+                  const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10)),
             ),
@@ -210,6 +210,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Widget _buildQuickActions(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final labelColor = isDark ? AppTheme.darkTextPrimary : AppTheme.textPrimary;
+
     final actions = [
       _QA(Icons.map_outlined, 'Book Trip', AppTheme.maroon,
           () => context.go('/home/routes')),
@@ -231,15 +234,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     Container(
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
-                        color: a.color.withOpacity(0.1),
+                        color: a.color.withOpacity(0.12),
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: a.color.withOpacity(0.15)),
+                        border: Border.all(color: a.color.withOpacity(0.2)),
                       ),
                       child: Icon(a.icon, color: a.color, size: 22),
                     ),
                     const SizedBox(height: 6),
-                    Text(a.label,
-                        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w500)),
+                    Text(
+                      a.label,
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: labelColor, // explicitly dark so it's always readable
+                      ),
+                    ),
                   ],
                 ),
               ))
@@ -256,30 +265,73 @@ class _QA {
   const _QA(this.icon, this.label, this.color, this.onTap);
 }
 
+// ── Notification Bell with unread dot ────────────────────────────────────────
+
+class _NotificationBell extends StatelessWidget {
+  final int unreadCount;
+  const _NotificationBell({required this.unreadCount});
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      onPressed: () => context.go('/home/notifications'),
+      icon: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          const Icon(Icons.notifications_outlined, color: Colors.white),
+          if (unreadCount > 0)
+            Positioned(
+              right: -2,
+              top: -2,
+              child: Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(
+                  color: Colors.green.shade400,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: AppTheme.maroon, width: 1.5),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Booking Card ──────────────────────────────────────────────────────────────
+
 class _BookingCard extends StatelessWidget {
   final Map<String, dynamic> booking;
   const _BookingCard({required this.booking});
 
   @override
   Widget build(BuildContext context) {
-    final trip = booking['trip_detail'];
+    final trip     = booking['trip_detail'];
     final schedule = trip?['schedule_detail'];
-    final route = schedule?['route_detail'];
+    final route    = schedule?['route_detail'];
+    final isDark   = Theme.of(context).brightness == Brightness.dark;
+
+    final cardColor = isDark ? AppTheme.darkCard : Colors.white;
+    final routeTextColor = isDark ? AppTheme.darkTextPrimary : AppTheme.textPrimary;
+    final metaTextColor  = isDark ? AppTheme.darkTextSecondary : const Color(0xFF555555);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: cardColor,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.grey.shade100),
+        border: Border.all(
+          color: isDark ? const Color(0xFF3A2E2E) : Colors.grey.shade100,
+        ),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: AppTheme.maroon.withOpacity(0.08),
+              color: AppTheme.maroon.withOpacity(0.1),
               borderRadius: BorderRadius.circular(10),
             ),
             child: const Icon(Icons.directions_bus_rounded,
@@ -292,12 +344,19 @@ class _BookingCard extends StatelessWidget {
               children: [
                 Text(
                   '${route?['origin'] ?? ''} → ${route?['destination'] ?? ''}',
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w600, fontSize: 13),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                    color: routeTextColor, // always dark/readable
+                  ),
                 ),
+                const SizedBox(height: 2),
                 Text(
-                  '${trip?['date']} · ${schedule?['departure_time'] ?? ''}',
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                  '${trip?['date'] ?? ''} · ${schedule?['departure_time'] ?? ''}',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: metaTextColor, // readable medium-dark
+                  ),
                 ),
               ],
             ),
@@ -307,9 +366,10 @@ class _BookingCard extends StatelessWidget {
             child: Column(
               children: [
                 const Icon(Icons.location_on, color: AppTheme.maroon, size: 20),
-                Text('Track',
-                    style: TextStyle(
-                        fontSize: 10, color: Colors.grey.shade600)),
+                Text(
+                  'Track',
+                  style: TextStyle(fontSize: 10, color: metaTextColor),
+                ),
               ],
             ),
           ),

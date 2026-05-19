@@ -7,7 +7,7 @@ class ApiService {
   // ── Base URL — emulator uses 10.0.2.2 to reach host localhost ────────────────
   static const String _configuredBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://192.168.1.213:8000/api',
+    defaultValue: 'http://192.168.100.28:8000/api',
   );
   static String get baseUrl => _configuredBaseUrl;
 
@@ -127,6 +127,14 @@ class ApiService {
     return _asMap(_unwrap(res.data));
   }
 
+  /// Poll Safaricom to confirm whether a pending STK push was paid.
+  /// Pass the transaction [reference] returned by topUpWallet.
+  /// Returns {'status': 'success'/'failed', 'message': ..., 'balance': ...}
+  Future<Map<String, dynamic>> checkMpesaPayment(String reference) async {
+    final res = await _dio.post('/payments/mpesa/query/', data: {'reference': reference});
+    return _asMap(_unwrap(res.data));
+  }
+
   Future<List<dynamic>> getMyTransactions() async {
     final res = await _dio.get('/payments/my/');
     return _asList(_unwrap(res.data));
@@ -216,6 +224,15 @@ class ApiService {
 
   Future<void> markNotificationRead(int id) async {
     await _dio.post('/notifications/$id/read/');
+  }
+
+  Future<void> markAllNotificationsRead() async {
+    await _dio.post('/notifications/mark-all-read/');
+  }
+
+  Future<int> getUnreadNotificationCount() async {
+    final res = await _dio.get('/notifications/unread/');
+    return (_asMap(_unwrap(res.data))['unread'] as int?) ?? 0;
   }
 }
 

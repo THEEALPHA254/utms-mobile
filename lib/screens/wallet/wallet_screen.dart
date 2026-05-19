@@ -50,6 +50,7 @@ class _WalletScreenState extends State<WalletScreen> {
     final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(title: const Text('My Wallet')),
+      resizeToAvoidBottomInset: true,
       body: RefreshIndicator(
         onRefresh: _load,
         child: _loading
@@ -232,8 +233,11 @@ class _TopUpSheetState extends State<_TopUpSheet> {
   final _phoneCtrl = TextEditingController();
   String _method = 'mpesa';
   bool _loading = false;
+  bool _checking = false;
   String? _message;
   bool _success = false;
+  bool _stkSent = false;
+  String? _pendingReference;
 
   final _quickAmounts = [50, 100, 200, 500];
 
@@ -254,14 +258,21 @@ class _TopUpSheetState extends State<_TopUpSheet> {
         'payment_method': _method,
         if (_method == 'mpesa') 'phone_number': _phoneCtrl.text.trim(),
       });
-      setState(() {
-        _success = true;
-        _message = _method == 'mpesa'
-            ? 'STK push sent to your phone. Complete payment on your handset.'
-            : res['message'] ?? 'Top-up initiated.';
-        _loading = false;
-      });
-      widget.onSuccess();
+      if (_method == 'mpesa') {
+        setState(() {
+          _stkSent = true;
+          _pendingReference = res['reference'] as String?;
+          _message = 'STK push sent. Complete payment on your phone, then tap "Confirm Payment" below.';
+          _loading = false;
+        });
+      } else {
+        setState(() {
+          _success = true;
+          _message = res['message'] ?? 'Top-up initiated.';
+          _loading = false;
+        });
+        widget.onSuccess();
+      }
     } catch (e) {
       setState(() {
         _message = 'Top-up failed. Please try again.';
@@ -270,15 +281,42 @@ class _TopUpSheetState extends State<_TopUpSheet> {
     }
   }
 
+  Future<void> _checkPayment() async {
+    if (_pendingReference == null) return;
+    setState(() { _checking = true; _message = null; });
+    try {
+      final res = await apiService.checkMpesaPayment(_pendingReference!);
+      final status = res['status'] as String? ?? 'failed';
+      final msg = res['message'] as String? ?? '';
+      final balance = res['balance'] as String?;
+      setState(() {
+        _checking = false;
+        _success = status == 'success';
+        _stkSent = !_success;
+        _message = _success
+            ? '${msg}${balance != null ? '\nNew balance: KES $balance' : ''}'
+            : msg.isNotEmpty ? msg : 'Payment not confirmed yet. Try again in a moment.';
+      });
+      if (_success) widget.onSuccess();
+    } catch (e) {
+      setState(() {
+        _checking = false;
+        _message = 'Could not check payment status. Try again.';
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Padding(
+    // Use SingleChildScrollView so the form scrolls up when the keyboard opens
+    return SingleChildScrollView(
       padding: EdgeInsets.only(
-          left: 24,
-          right: 24,
-          top: 24,
-          bottom: MediaQuery.of(context).viewInsets.bottom + 24),
+        left: 24,
+        right: 24,
+        top: 24,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -357,28 +395,50 @@ class _TopUpSheetState extends State<_TopUpSheet> {
               decoration: BoxDecoration(
                 color: _success
                     ? Colors.green.shade50
-                    : theme.colorScheme.errorContainer,
+                    : _stkSent
+                        ? Colors.blue.shade50
+                        : theme.colorScheme.errorContainer,
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Text(_message!,
                   style: TextStyle(
                       color: _success
                           ? Colors.green.shade800
-                          : theme.colorScheme.error)),
+                          : _stkSent
+                              ? Colors.blue.shade800
+                              : theme.colorScheme.error)),
             ),
           ],
 
           const SizedBox(height: 20),
-          ElevatedButton(
-            onPressed: _loading ? null : _topUp,
-            child: _loading
-                ? const SizedBox(
-                    height: 22,
-                    width: 22,
-                    child: CircularProgressIndicator(
-                        color: Colors.white, strokeWidth: 2))
-                : const Text('Proceed'),
-          ),
+          if (!_stkSent)
+            ElevatedButton(
+              onPressed: _loading ? null : _topUp,
+              child: _loading
+                  ? const SizedBox(
+                      height: 22,
+                      width: 22,
+                      child: CircularProgressIndicator(
+                          color: Colors.white, strokeWidth: 2))
+                  : const Text('Proceed'),
+            ),
+          if (_stkSent && !_success) ...[
+            ElevatedButton.icon(
+              onPressed: _checking ? null : _checkPayment,
+              icon: _checking
+                  ? const SizedBox(
+                      height: 18, width: 18,
+                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                  : const Icon(Icons.check_circle_outline, size: 18),
+              label: Text(_checking ? 'Checking...' : 'Confirm Payment'),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+            ),
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: _loading ? null : _topUp,
+              child: const Text('Resend STK Push'),
+            ),
+          ],
         ],
       ),
     );

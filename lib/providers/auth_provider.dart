@@ -52,7 +52,13 @@ class AuthNotifier extends Notifier<AuthState> {
       final user = await apiService.getMe();
       state = AuthState(user: user);
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: 'Invalid email or password.');
+      final msg = e.toString();
+      final error = msg.contains('connection') || msg.contains('timeout') || msg.contains('SocketException')
+          ? 'Cannot reach server. Check your network connection.'
+          : msg.contains('401') || msg.contains('Invalid')
+              ? 'Invalid email or password.'
+              : 'Login failed. Please try again.';
+      state = state.copyWith(isLoading: false, error: error);
     }
   }
 

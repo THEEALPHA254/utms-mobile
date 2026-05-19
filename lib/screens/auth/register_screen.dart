@@ -21,7 +21,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     'faculty': TextEditingController(),
     'password': TextEditingController(),
   };
-  final bool _obscure = true;
+  bool _obscure = true;
   int _step = 0;
 
   @override
@@ -39,14 +39,22 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     });
   }
 
-  Widget _field(String key, String label, {TextInputType? type, bool obscure = false, String? Function(String?)? validator}) {
+  Widget _field(String key, String label, {TextInputType? type, bool obscure = false, bool isPassword = false, String? Function(String?)? validator}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
       child: TextFormField(
         controller: _ctrls[key],
         keyboardType: type,
         obscureText: obscure,
-        decoration: InputDecoration(labelText: label),
+        decoration: InputDecoration(
+          labelText: label,
+          suffixIcon: isPassword
+              ? IconButton(
+                  icon: Icon(obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined),
+                  onPressed: () => setState(() => _obscure = !_obscure),
+                )
+              : null,
+        ),
         validator: validator ?? (v) => v!.trim().isEmpty ? 'Required' : null,
       ),
     );
@@ -113,7 +121,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                       _field('email', 'Email Address', type: TextInputType.emailAddress,
                           validator: (v) => v!.contains('@') ? null : 'Invalid email'),
                       _field('phone_number', 'Phone Number (e.g. 07XXXXXXXX)', type: TextInputType.phone),
-                      _field('password', 'Password', obscure: _obscure,
+                      _field('password', 'Password', obscure: _obscure, isPassword: true,
                           validator: (v) => v!.length >= 8 ? null : 'Minimum 8 characters'),
                     ] else ...[
                       _field('admission_number', 'Admission Number'),

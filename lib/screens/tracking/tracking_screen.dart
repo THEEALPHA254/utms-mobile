@@ -4,6 +4,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../../services/api_service.dart';
 
 class TrackingScreen extends StatefulWidget {
   final int tripId;
@@ -32,8 +33,10 @@ class _TrackingScreenState extends State<TrackingScreen> {
   }
 
   Future<void> _connectWebSocket() async {
-    // WebSocket URL — update host for production
-    const wsHost = 'ws://10.0.2.2:8000';
+    // Derive WebSocket host from the REST API base URL so both always match
+    final apiBase = Uri.parse(ApiService.baseUrl);
+    final wsScheme = apiBase.scheme == 'https' ? 'wss' : 'ws';
+    final wsHost = '$wsScheme://${apiBase.host}:${apiBase.port}';
     final uri = Uri.parse('$wsHost/ws/trip/${widget.tripId}/');
     try {
       _channel = WebSocketChannel.connect(uri);

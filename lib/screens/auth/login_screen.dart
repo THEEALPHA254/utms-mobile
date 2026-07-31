@@ -155,7 +155,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           : const Text('Sign In'),
                     ),
 
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 8),
+                    Center(
+                      child: TextButton(
+                        onPressed: () => context.go('/forgot-password'),
+                        child: const Text(
+                          'Forgot password?',
+                          style: TextStyle(color: AppTheme.maroon),
+                        ),
+                      ),
+                    ),
                     Center(
                       child: TextButton(
                         onPressed: () => context.go('/register'),

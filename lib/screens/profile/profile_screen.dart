@@ -3,13 +3,44 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/theme_provider.dart';
+import '../../services/api_service.dart';
 import '../../utils/app_theme.dart';
 
-class ProfileScreen extends ConsumerWidget {
+class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends ConsumerState<ProfileScreen> {
+  String? _liveBalance;
+  bool _balanceLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchBalance();
+  }
+
+  Future<void> _fetchBalance() async {
+    setState(() => _balanceLoading = true);
+    try {
+      final data = await apiService.getWalletBalance();
+      if (mounted) {
+        setState(() {
+          _liveBalance = double.tryParse(data['balance'].toString())
+              ?.toStringAsFixed(2);
+          _balanceLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _balanceLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final auth      = ref.watch(authProvider);
     final user      = auth.user;
     final profile   = user?['student_profile'];
@@ -61,8 +92,6 @@ class ProfileScreen extends ConsumerWidget {
             _InfoCard(items: [
               _InfoRow(Icons.badge_outlined, 'Admission No',
                   profile?['admission_number'] ?? '—'),
-              _InfoRow(Icons.card_membership_outlined, 'Student ID',
-                  profile?['student_id'] ?? '—'),
               _InfoRow(Icons.school_outlined, 'Faculty',
                   profile?['faculty'] ?? '—'),
               _InfoRow(Icons.phone_outlined, 'Phone',
@@ -84,7 +113,9 @@ class ProfileScreen extends ConsumerWidget {
               _InfoRow(
                 Icons.account_balance_wallet_outlined,
                 'Wallet Balance',
-                'KES ${profile?['wallet_balance'] ?? '0.00'}',
+                _balanceLoading
+                    ? 'Loading...'
+                    : 'KES ${_liveBalance ?? profile?['wallet_balance'] ?? '0.00'}',
               ),
             ]),
 

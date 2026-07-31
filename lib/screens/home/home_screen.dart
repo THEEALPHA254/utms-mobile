@@ -17,6 +17,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Map<String, dynamic>? _balance;
   List<dynamic> _upcoming = [];
   bool _loading = true;
+  bool _balanceVisible = true;
 
   @override
   void initState() {
@@ -25,22 +26,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Future<void> _load() async {
-    // Refresh unread count whenever home loads
     ref.read(unreadCountProvider.notifier).refresh();
-    try {
-      final results = await Future.wait([
-        apiService.getWalletBalance(),
-        apiService.getMyBookings(),
-      ]);
-      setState(() {
-        _balance  = results[0] as Map<String, dynamic>;
-        final bookings = results[1] as List;
-        _upcoming = bookings.where((b) => b['status'] == 'confirmed').take(3).toList();
-        _loading  = false;
-      });
-    } catch (_) {
-      setState(() => _loading = false);
-    }
+    setState(() => _loading = true);
+
+    // Run independently so one failure doesn't hide the other
+    final balanceFuture = apiService.getWalletBalance().then((v) {
+      if (mounted) setState(() => _balance = v);
+    }).catchError((_) {});
+
+    final bookingsFuture = apiService.getMyBookings().then((bookings) {
+      if (mounted) {
+        setState(() {
+          _upcoming = bookings
+              .where((b) => b['status'] == 'confirmed')
+              .take(3)
+              .toList();
+        });
+      }
+    }).catchError((_) {});
+
+    await Future.wait([balanceFuture, bookingsFuture]);
+    if (mounted) setState(() => _loading = false);
   }
 
   @override
@@ -149,9 +155,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Widget _buildWalletCard() {
-    final bal = _balance == null
-        ? '—'
-        : 'KES ${double.parse(_balance!['balance'].toString()).toStringAsFixed(2)}';
+    final String balanceText;
+    if (_loading) {
+      balanceText = 'Loading...';
+    } else if (_balance == null) {
+      balanceText = 'Unavailable';
+    } else {
+      final amount = double.tryParse(_balance!['balance'].toString()) ?? 0.0;
+      balanceText = 'KES ${amount.toStringAsFixed(2)}';
+    }
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -176,16 +188,39 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Wallet Balance',
-                    style: TextStyle(color: Colors.white70, fontSize: 12)),
-                const SizedBox(height: 6),
-                Text(
-                  bal,
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold),
+                Row(
+                  children: [
+                    const Text('Wallet Balance',
+                        style: TextStyle(color: Colors.white70, fontSize: 12)),
+                    const SizedBox(width: 6),
+                    GestureDetector(
+                      onTap: () =>
+                          setState(() => _balanceVisible = !_balanceVisible),
+                      child: Icon(
+                        _balanceVisible
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
+                        color: Colors.white70,
+                        size: 16,
+                      ),
+                    ),
+                  ],
                 ),
+                const SizedBox(height: 6),
+                _loading
+                    ? const SizedBox(
+                        height: 24,
+                        width: 24,
+                        child: CircularProgressIndicator(
+                            color: Colors.white, strokeWidth: 2),
+                      )
+                    : Text(
+                        _balanceVisible ? balanceText : '••••••',
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold),
+                      ),
               ],
             ),
           ),

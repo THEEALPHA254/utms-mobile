@@ -50,8 +50,12 @@ class _TripListScreenState extends State<TripListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cardColor = theme.cardColor;
+    final borderColor = theme.dividerColor.withOpacity(0.3);
+    final subTextColor = theme.textTheme.bodySmall?.color ?? Colors.grey;
+
     return Scaffold(
-      backgroundColor: AppTheme.surface,
       appBar: AppBar(title: const Text('Available Trips')),
       body: Column(
         children: [
@@ -64,7 +68,7 @@ class _TripListScreenState extends State<TripListScreen> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: cardColor,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: AppTheme.maroon.withOpacity(0.2)),
                 ),
@@ -110,9 +114,9 @@ class _TripListScreenState extends State<TripListScreen> {
                             return Container(
                               padding: const EdgeInsets.all(16),
                               decoration: BoxDecoration(
-                                color: Colors.white,
+                                color: cardColor,
                                 borderRadius: BorderRadius.circular(14),
-                                border: Border.all(color: Colors.grey.shade100),
+                                border: Border.all(color: borderColor),
                               ),
                               child: Row(
                                 children: [
@@ -138,7 +142,7 @@ class _TripListScreenState extends State<TripListScreen> {
                                         Text(
                                           'Bus ${bus?['bus_number']} · ${bus?['plate_number']}',
                                           style: TextStyle(
-                                              fontSize: 12, color: Colors.grey.shade600),
+                                              fontSize: 12, color: subTextColor),
                                         ),
                                         Text(
                                           '$avail seats left',
@@ -259,8 +263,8 @@ class _BookingConfirmScreenState extends State<BookingConfirmScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cardColor = Theme.of(context).cardColor;
     return Scaffold(
-      backgroundColor: AppTheme.surface,
       appBar: AppBar(title: const Text('Confirm Booking')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
@@ -337,9 +341,10 @@ class _BookingConfirmScreenState extends State<BookingConfirmScreen> {
             // Pay for peer
             Container(
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: cardColor,
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.grey.shade100),
+                border: Border.all(
+                    color: Theme.of(context).dividerColor.withOpacity(0.3)),
               ),
               child: SwitchListTile(
                 title: const Text('Pay for a Peer',
@@ -437,10 +442,12 @@ class _Tile extends StatelessWidget {
             decoration: BoxDecoration(
               color: selected
                   ? AppTheme.maroon.withOpacity(0.08)
-                  : Colors.white,
+                  : Theme.of(context).cardColor,
               borderRadius: BorderRadius.circular(14),
               border: Border.all(
-                color: selected ? AppTheme.maroon : Colors.grey.shade200,
+                color: selected
+                    ? AppTheme.maroon
+                    : Theme.of(context).dividerColor.withOpacity(0.4),
                 width: selected ? 1.5 : 1,
               ),
             ),

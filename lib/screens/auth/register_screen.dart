@@ -17,7 +17,6 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     'email': TextEditingController(),
     'phone_number': TextEditingController(),
     'admission_number': TextEditingController(),
-    'student_id': TextEditingController(),
     'faculty': TextEditingController(),
     'password': TextEditingController(),
   };
@@ -125,7 +124,6 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                           validator: (v) => v!.length >= 8 ? null : 'Minimum 8 characters'),
                     ] else ...[
                       _field('admission_number', 'Admission Number'),
-                      _field('student_id', 'Student ID'),
                       _field('faculty', 'Faculty / Department'),
                     ],
 

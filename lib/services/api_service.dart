@@ -7,7 +7,7 @@ class ApiService {
   // ── Base URL — emulator uses 10.0.2.2 to reach host localhost ────────────────
   static const String _configuredBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://192.168.100.28:8000/api',
+    defaultValue: 'http://localhost:8000/api',
   );
   static String get baseUrl => _configuredBaseUrl;
 
@@ -88,12 +88,25 @@ class ApiService {
   // ── Auth ──────────────────────────────────────────────────────────────────────
 
   Future<Map<String, dynamic>> login(String email, String password) async {
-    final res = await _dio.post('/auth/login/', data: {'email': email, 'password': password});
-    final payload = _asMap(_unwrap(res.data));
-    await _storage.write(key: 'access_token', value: payload['access']);
-    await _storage.write(key: 'refresh_token', value: payload['refresh']);
-    await _storage.write(key: 'user_profile', value: jsonEncode(payload));
-    return payload;
+    try {
+      final res = await _dio.post('/auth/login/', data: {'email': email, 'password': password});
+      final payload = _asMap(_unwrap(res.data));
+      await _storage.write(key: 'access_token', value: payload['access']);
+      await _storage.write(key: 'refresh_token', value: payload['refresh']);
+      await _storage.write(key: 'user_profile', value: jsonEncode(payload));
+      return payload;
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 403) {
+        final data = e.response?.data;
+        final msg = (data is Map ? data['message'] ?? data['detail'] : null) ??
+            'Your account has been suspended. Please contact the administration office.';
+        throw Exception('403: $msg');
+      }
+      if (e.response?.statusCode == 401) {
+        throw Exception('401: Invalid email or password.');
+      }
+      rethrow;
+    }
   }
 
   Future<Map<String, dynamic>> register(Map<String, dynamic> data) async {
@@ -114,6 +127,22 @@ class ApiService {
   }
 
   Future<void> logout() async => await _storage.deleteAll();
+
+  Future<void> forgotPassword(String email) async {
+    await _dio.post('/auth/forgot-password/', data: {'email': email});
+  }
+
+  Future<void> resetPassword({
+    required String email,
+    required String otp,
+    required String newPassword,
+  }) async {
+    await _dio.post('/auth/reset-password/', data: {
+      'email': email,
+      'otp': otp,
+      'new_password': newPassword,
+    });
+  }
 
   // ── Wallet ────────────────────────────────────────────────────────────────────
 

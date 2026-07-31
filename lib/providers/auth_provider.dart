@@ -53,11 +53,20 @@ class AuthNotifier extends Notifier<AuthState> {
       state = AuthState(user: user);
     } catch (e) {
       final msg = e.toString();
-      final error = msg.contains('connection') || msg.contains('timeout') || msg.contains('SocketException')
-          ? 'Cannot reach server. Check your network connection.'
-          : msg.contains('401') || msg.contains('Invalid')
-              ? 'Invalid email or password.'
-              : 'Login failed. Please try again.';
+      String error;
+      if (msg.contains('403:')) {
+        // Extract message after "403: "
+        error = msg.split('403:').last.trim();
+        if (error.isEmpty) {
+          error = 'Your account has been suspended. Please contact the administration office.';
+        }
+      } else if (msg.contains('connection') || msg.contains('timeout') || msg.contains('SocketException')) {
+        error = 'Cannot reach server. Check your network connection.';
+      } else if (msg.contains('401') || msg.contains('Invalid')) {
+        error = 'Invalid email or password.';
+      } else {
+        error = 'Login failed. Please try again.';
+      }
       state = state.copyWith(isLoading: false, error: error);
     }
   }

@@ -22,11 +22,12 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
 
   Future<void> _load() async {
     setState(() => _loading = true);
-    final data = await apiService.getMyBookings();
-    setState(() {
-      _bookings = data;
-      _loading  = false;
-    });
+    try {
+      final data = await apiService.getMyBookings();
+      if (mounted) setState(() { _bookings = data; _loading = false; });
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   Color _statusColor(String s) => {

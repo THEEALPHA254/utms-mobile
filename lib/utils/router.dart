@@ -7,6 +7,7 @@ import '../providers/auth_provider.dart';
 // ── Screens ───────────────────────────────────────────────────────────────────
 import '../screens/auth/login_screen.dart';
 import '../screens/auth/register_screen.dart';
+import '../screens/auth/forgot_password_screen.dart';
 
 // Student
 import '../screens/home/home_screen.dart';
@@ -35,7 +36,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     redirect: (context, state) {
       final loggedIn = auth.isAuthenticated;
       final loc = state.matchedLocation;
-      final goingToAuth = loc.startsWith('/login') || loc.startsWith('/register');
+      final goingToAuth = loc.startsWith('/login') ||
+          loc.startsWith('/register') ||
+          loc.startsWith('/forgot-password');
 
       if (!loggedIn && !goingToAuth) return '/login';
 
@@ -47,8 +50,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     },
     routes: [
       // ── Auth ───────────────────────────────────────────────────────────────
-      GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
-      GoRoute(path: '/register', builder: (_, __) => const RegisterScreen()),
+      GoRoute(path: '/login',            builder: (_, __) => const LoginScreen()),
+      GoRoute(path: '/register',         builder: (_, __) => const RegisterScreen()),
+      GoRoute(path: '/forgot-password',  builder: (_, __) => const ForgotPasswordScreen()),
 
       // ── Student shell ──────────────────────────────────────────────────────
       GoRoute(

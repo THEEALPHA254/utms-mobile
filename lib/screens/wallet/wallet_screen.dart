@@ -231,7 +231,6 @@ class _TopUpSheet extends StatefulWidget {
 class _TopUpSheetState extends State<_TopUpSheet> {
   final _amountCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
-  String _method = 'mpesa';
   bool _loading = false;
   bool _checking = false;
   String? _message;
@@ -247,7 +246,7 @@ class _TopUpSheetState extends State<_TopUpSheet> {
       setState(() => _message = 'Enter a valid amount (min KES 10)');
       return;
     }
-    if (_method == 'mpesa' && _phoneCtrl.text.isEmpty) {
+    if (_phoneCtrl.text.isEmpty) {
       setState(() => _message = 'Enter your M-Pesa phone number');
       return;
     }
@@ -255,24 +254,15 @@ class _TopUpSheetState extends State<_TopUpSheet> {
     try {
       final res = await apiService.topUpWallet({
         'amount': amount,
-        'payment_method': _method,
-        if (_method == 'mpesa') 'phone_number': _phoneCtrl.text.trim(),
+        'payment_method': 'mpesa',
+        'phone_number': _phoneCtrl.text.trim(),
       });
-      if (_method == 'mpesa') {
-        setState(() {
-          _stkSent = true;
-          _pendingReference = res['reference'] as String?;
-          _message = 'STK push sent. Complete payment on your phone, then tap "Confirm Payment" below.';
-          _loading = false;
-        });
-      } else {
-        setState(() {
-          _success = true;
-          _message = res['message'] ?? 'Top-up initiated.';
-          _loading = false;
-        });
-        widget.onSuccess();
-      }
+      setState(() {
+        _stkSent = true;
+        _pendingReference = res['reference'] as String?;
+        _message = 'STK push sent. Complete payment on your phone, then tap "Confirm Payment" below.';
+        _loading = false;
+      });
     } catch (e) {
       setState(() {
         _message = 'Top-up failed. Please try again.';
@@ -297,7 +287,11 @@ class _TopUpSheetState extends State<_TopUpSheet> {
             ? '${msg}${balance != null ? '\nNew balance: KES $balance' : ''}'
             : msg.isNotEmpty ? msg : 'Payment not confirmed yet. Try again in a moment.';
       });
-      if (_success) widget.onSuccess();
+      if (_success) {
+        _amountCtrl.clear();
+        _phoneCtrl.clear();
+        widget.onSuccess();
+      }
     } catch (e) {
       setState(() {
         _checking = false;
@@ -350,33 +344,28 @@ class _TopUpSheetState extends State<_TopUpSheet> {
           TextFormField(
             controller: _amountCtrl,
             keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              labelText: 'Amount (KES)',
-              prefixIcon: Icon(Icons.attach_money),
+            decoration: InputDecoration(
+              labelText: 'Amount',
+              prefixIcon: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                child: Text(
+                  'KES',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                  ),
+                ),
+              ),
             ),
           ),
           const SizedBox(height: 14),
 
-          // Payment method
-          const Text('Payment Method',
+          // M-Pesa phone number
+          const Text('M-Pesa Payment',
               style: TextStyle(fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
-          Row(
-            children: [
-              _MethodChip(
-                  label: 'M-Pesa',
-                  icon: Icons.phone_android,
-                  selected: _method == 'mpesa',
-                  onTap: () => setState(() => _method = 'mpesa')),
-              const SizedBox(width: 10),
-              _MethodChip(
-                  label: 'Card',
-                  icon: Icons.credit_card,
-                  selected: _method == 'card',
-                  onTap: () => setState(() => _method = 'card')),
-            ],
-          ),
-          if (_method == 'mpesa') ...[
+          if (true) ...[
             const SizedBox(height: 14),
             TextFormField(
               controller: _phoneCtrl,
@@ -445,52 +434,3 @@ class _TopUpSheetState extends State<_TopUpSheet> {
   }
 }
 
-class _MethodChip extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final bool selected;
-  final VoidCallback onTap;
-  const _MethodChip(
-      {required this.label,
-      required this.icon,
-      required this.selected,
-      required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(
-          color: selected
-              ? theme.colorScheme.primaryContainer
-              : Colors.grey.shade100,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: selected
-                ? theme.colorScheme.primary
-                : Colors.grey.shade300,
-          ),
-        ),
-        child: Row(children: [
-          Icon(icon,
-              size: 18,
-              color: selected
-                  ? theme.colorScheme.primary
-                  : Colors.grey),
-          const SizedBox(width: 6),
-          Text(label,
-              style: TextStyle(
-                  fontWeight:
-                      selected ? FontWeight.bold : FontWeight.normal,
-                  color: selected
-                      ? theme.colorScheme.primary
-                      : Colors.grey.shade700)),
-        ]),
-      ),
-    );
-  }
-}

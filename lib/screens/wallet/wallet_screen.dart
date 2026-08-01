@@ -1,3 +1,22 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// WALLET SCREEN — balance + transaction history + M-Pesa top-up
+//
+// KEY CONCEPTS:
+//   • M-Pesa STK Push flow:
+//         1. User enters amount + phone → we call /payments/wallet/topup/.
+//         2. Backend forwards to Safaricom's Daraja API, which "pushes" a
+//            payment prompt to the user's phone.
+//         3. User completes payment on their handset — the actual money move
+//            happens outside our control.
+//         4. We POLL /payments/mpesa/query/ to ask Safaricom whether the
+//            transaction succeeded. Once confirmed, backend credits the wallet.
+//   • The reference returned by the topup call is the key we poll on.
+//   • `MediaQuery.of(context).viewInsets.bottom` = height of the on-screen
+//     keyboard. Padding by this amount stops the form from being covered.
+//   • `Wrap` lays children out horizontally and wraps to a new line if they
+//     overflow — used here for the "quick amount" chips.
+// ─────────────────────────────────────────────────────────────────────────────
+
 import 'package:flutter/material.dart';
 import '../../services/api_service.dart';
 
@@ -240,7 +259,12 @@ class _TopUpSheetState extends State<_TopUpSheet> {
 
   final _quickAmounts = [50, 100, 200, 500];
 
+  // STEP 1 of the M-Pesa flow — trigger the STK push.
+  // On success we store the transaction `reference` so `_checkPayment` can
+  // later ask the backend "did this reference get paid?".
   Future<void> _topUp() async {
+    // `double.tryParse` returns null on invalid input (safer than parse()
+    // which throws). Enforce a minimum of KES 10 to avoid tiny junk requests.
     final amount = double.tryParse(_amountCtrl.text);
     if (amount == null || amount < 10) {
       setState(() => _message = 'Enter a valid amount (min KES 10)');
@@ -259,6 +283,7 @@ class _TopUpSheetState extends State<_TopUpSheet> {
       });
       setState(() {
         _stkSent = true;
+        // Save the reference so we can query its status in step 2.
         _pendingReference = res['reference'] as String?;
         _message = 'STK push sent. Complete payment on your phone, then tap "Confirm Payment" below.';
         _loading = false;
@@ -271,6 +296,8 @@ class _TopUpSheetState extends State<_TopUpSheet> {
     }
   }
 
+  // STEP 2 of the M-Pesa flow — poll the backend to see if the STK push
+  // was completed by the user. Success → refresh balances via `onSuccess`.
   Future<void> _checkPayment() async {
     if (_pendingReference == null) return;
     setState(() { _checking = true; _message = null; });

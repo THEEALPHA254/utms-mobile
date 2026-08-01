@@ -1,3 +1,22 @@
+// ─────────────────────────────────────────────────────────────────────────────//
+// The other side of the booking flow: students carry a QR code in the app;
+// drivers scan it here to mark them boarded.
+//
+// KEY CONCEPTS:
+//   • `mobile_scanner` is a pub.dev package that wraps the platform camera
+//     APIs and reports decoded barcodes via `onDetect`.
+//   • `DetectionSpeed.noDuplicates` — the scanner ignores the same barcode
+//     if it hasn't changed frame-to-frame (prevents accidental multi-scans).
+//   • `_processing` flag debounces the scan: once we start verifying a QR
+//     we ignore further detections until we've shown the result + reset.
+//   • `Stack` overlays the camera view, the scan frame outline, and the
+//     result banner on top of each other.
+//   • `_controller.dispose()` is critical — leaving the camera hot burns
+//     battery and can block other apps from using it.
+// ─────────────────────────────────────────────────────────────────────────────
+// DRIVER QR SCANNER
+
+
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../services/api_service.dart';
@@ -28,15 +47,21 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
     super.dispose();
   }
 
+  // Fired by the camera every time a barcode is detected. We debounce with
+  // `_processing` so a single scan isn't submitted multiple times.
   Future<void> _onDetect(BarcodeCapture capture) async {
     if (_processing) return;
+    // Grab the raw string payload from the first detected barcode.
     final qr = capture.barcodes.firstOrNull?.rawValue;
     if (qr == null || qr.isEmpty) return;
 
     setState(() => _processing = true);
+    // Stop the camera stream while we verify — avoids overlapping detections.
     await _controller.stop();
 
     try {
+      // Send the QR payload to the backend. On success, the backend flips
+      // the booking's `boarded` field and returns the student's name.
       final res = await apiService.verifyBoarding(qr);
       final studentName = res['student'] as String? ?? 'Student';
       setState(() {

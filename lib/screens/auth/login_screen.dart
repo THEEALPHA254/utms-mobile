@@ -63,7 +63,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final auth  = ref.watch(authProvider);
-    final theme = Theme.of(context);
+    // final theme = Theme.of(context);
 
     return Scaffold(
       // Always maroon top half — the form card is always white
@@ -80,7 +80,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   Icon(Icons.directions_bus_rounded,
                       color: Colors.white, size: 64),
                   SizedBox(height: 12),
-                  Text('UTMS',
+                  Text('USTMS',
                       style: TextStyle(
                           color: Colors.white,
                           fontSize: 32,

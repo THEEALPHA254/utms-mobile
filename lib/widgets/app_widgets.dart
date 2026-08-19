@@ -261,10 +261,10 @@ class EmptyState extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
-                  color: AppTheme.maroon.withOpacity(0.06),
+                  color: AppTheme.maroon.withValues(alpha: 0.06),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(icon, size: 48, color: AppTheme.maroon.withOpacity(0.4)),
+                child: Icon(icon, size: 48, color: AppTheme.maroon.withValues(alpha: 0.4)),
               ),
               const SizedBox(height: 20),
               Text(title,

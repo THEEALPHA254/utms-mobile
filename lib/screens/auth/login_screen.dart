@@ -1,3 +1,21 @@
+// -----------------------------------------------------------------------------
+// LOGIN SCREEN
+//
+// KEY CONCEPTS:
+//   • `ConsumerStatefulWidget` = a StatefulWidget that also gives us `ref`
+//     for Riverpod access. Needed here because we hold text controllers +
+//     an "obscure password" toggle — state that survives widget rebuilds.
+//   • `TextEditingController` owns the text inside a TextFormField. We
+//     `dispose()` them to prevent memory leaks (they hold listeners).
+//   • `GlobalKey<FormState>` lets us call `.validate()` on the Form to run
+//     every field's validator at once.
+//   • `ref.read(authProvider.notifier).login(...)` — use `.read` (not
+//     `.watch`) when you just want to CALL a method; watch is for reading
+//     state that should rebuild the widget when it changes.
+//   • The router redirects automatically when `auth.isAuthenticated` flips,
+//     so this screen never has to call `context.go('/home')` on success.
+// ----------------------------------------------------------------------------
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -12,11 +30,16 @@ class LoginScreen extends ConsumerStatefulWidget {
 }
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
+  // Controllers wire the TextFields to Dart strings we can read from.
   final _emailCtrl = TextEditingController();
   final _passCtrl  = TextEditingController();
+  // Toggle for the show/hide password eye icon.
   bool _obscure    = true;
+  // Handle to the Form so we can trigger validate() from the login button.
   final _formKey   = GlobalKey<FormState>();
 
+  // Lifecycle hook: called when this widget leaves the tree. Freeing the
+  // controllers here avoids leaking the underlying listeners.
   @override
   void dispose() {
     _emailCtrl.dispose();
@@ -24,6 +47,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     super.dispose();
   }
 
+  // Called by the Sign In button. Validate first, then delegate to the
+  // AuthNotifier — any error will land in `auth.error` and be rendered above.
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
     await ref.read(authProvider.notifier).login(
@@ -32,10 +57,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         );
   }
 
+  // `build` runs on every state change (setState) AND whenever a watched
+  // provider updates. That's how the loading spinner and error banner appear
+  // without us doing anything manually — we just watch `authProvider`.
   @override
   Widget build(BuildContext context) {
     final auth  = ref.watch(authProvider);
-    final theme = Theme.of(context);
+    // final theme = Theme.of(context);
 
     return Scaffold(
       // Always maroon top half — the form card is always white
@@ -52,7 +80,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   Icon(Icons.directions_bus_rounded,
                       color: Colors.white, size: 64),
                   SizedBox(height: 12),
-                  Text('UTMS',
+                  Text('USTMS',
                       style: TextStyle(
                           color: Colors.white,
                           fontSize: 32,
@@ -87,6 +115,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                     const SizedBox(height: 20),
 
+                    // Only render the error banner when there's an error to show.
+                    // Dart's `if` inside a widget list is a "collection if".
                     if (auth.error != null)
                       Container(
                         width: double.infinity,
@@ -144,6 +174,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                     const SizedBox(height: 24),
 
+                    // Sign In button — disabled (onPressed: null) while a login
+                    // request is in flight, and swaps its label for a spinner.
                     ElevatedButton(
                       onPressed: auth.isLoading ? null : _login,
                       child: auth.isLoading
@@ -155,7 +187,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           : const Text('Sign In'),
                     ),
 
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 8),
+                    Center(
+                      child: TextButton(
+                        onPressed: () => context.go('/forgot-password'),
+                        child: const Text(
+                          'Forgot password?',
+                          style: TextStyle(color: AppTheme.maroon),
+                        ),
+                      ),
+                    ),
                     Center(
                       child: TextButton(
                         onPressed: () => context.go('/register'),

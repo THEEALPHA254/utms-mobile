@@ -1,3 +1,16 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// SHARED UI COMPONENTS
+//
+// This file collects small, reusable presentation widgets that appear on
+// multiple screens (gradient header cards, status badges, section headers,
+// empty-state placeholders, error banners, loading buttons, etc.).
+//
+// Keeping them here means:
+//   • Consistent styling across the app (one place to update maroon accents).
+//   • Screens stay focused on their own state/business logic.
+//   • Each widget is a `StatelessWidget` — pure presentation, no local state.
+// ─────────────────────────────────────────────────────────────────────────────
+
 /// Reusable UI components for UTMS app
 import 'package:flutter/material.dart';
 import '../utils/app_theme.dart';
@@ -248,10 +261,10 @@ class EmptyState extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
-                  color: AppTheme.maroon.withOpacity(0.06),
+                  color: AppTheme.maroon.withValues(alpha: 0.06),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(icon, size: 48, color: AppTheme.maroon.withOpacity(0.4)),
+                child: Icon(icon, size: 48, color: AppTheme.maroon.withValues(alpha: 0.4)),
               ),
               const SizedBox(height: 20),
               Text(title,

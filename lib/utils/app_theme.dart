@@ -1,3 +1,27 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// APP THEME — Material 3 design tokens for light + dark mode
+//
+// KEY CONCEPTS:
+//   • Material 3 (M3) is Google's latest design system. `useMaterial3: true`
+//     opts in — without it, Flutter falls back to the older M2 look.
+//   • `ColorScheme` is the M3 palette: primary/secondary/tertiary + their
+//     containers + text-on-color pairs (`onPrimary`, `onSurface`, …).
+//     Widgets read from this scheme automatically, so changing one field
+//     re-themes the whole app.
+//   • Component-specific themes (`appBarTheme`, `elevatedButtonTheme`,
+//     `inputDecorationTheme`, …) let us override defaults ONCE globally
+//     instead of styling every widget instance by hand.
+//   • Dark mode variants exist so `themeMode: dark` doesn't just invert
+//     colours — it applies a deliberately-tuned palette optimised for
+//     low-light readability.
+//   • `GoogleFonts.interTextTheme(...)` pulls the Inter typeface from
+//     Google's CDN at first launch (then caches it). All text in the app
+//     ends up using Inter without importing font files manually.
+//
+// This class exposes two static getters: `AppTheme.light` and `AppTheme.dark`.
+// `main.dart` passes them to `MaterialApp.router(theme:, darkTheme:)`.
+// ─────────────────────────────────────────────────────────────────────────────
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 

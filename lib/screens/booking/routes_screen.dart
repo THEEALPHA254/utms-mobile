@@ -1,4 +1,15 @@
-// ── routes_screen.dart ──────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// ROUTES SCREEN — step 1 of the booking flow
+//
+// The student picks a route (e.g. "CBD → CUEA"); tapping one navigates to
+// `TripListScreen` which shows the individual trips on that route for the
+// chosen date.
+//
+// Uses `ListView.separated` for consistent spacing between cards, and
+// `ListTile` — Material's ready-made row widget with leading/title/subtitle/
+// trailing slots — to keep the layout code minimal.
+// ─────────────────────────────────────────────────────────────────────────────
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../services/api_service.dart';

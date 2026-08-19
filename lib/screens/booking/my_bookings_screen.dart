@@ -1,5 +1,19 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// MY BOOKINGS SCREEN
+//
+// KEY CONCEPTS:
+//   • `qr_flutter` renders a scannable QR code from any string — we pass the
+//     backend-issued `qr_code` payload; the driver's scanner reads it and
+//     hits `/transport/bookings/board/` to mark the student as boarded.
+//   • `showModalBottomSheet` slides up a sheet from the bottom. Great for
+//     contextual actions (like showing the QR without leaving the screen).
+//   • The `_statusColor` map is a compact way to turn a string status into
+//     a colour without a chain of if/else.
+// ─────────────────────────────────────────────────────────────────────────────
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+// qr_flutter is a third-party pub.dev package that draws QR codes as widgets.
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../services/api_service.dart';
 import '../../utils/app_theme.dart';
@@ -22,11 +36,12 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
 
   Future<void> _load() async {
     setState(() => _loading = true);
-    final data = await apiService.getMyBookings();
-    setState(() {
-      _bookings = data;
-      _loading  = false;
-    });
+    try {
+      final data = await apiService.getMyBookings();
+      if (mounted) setState(() { _bookings = data; _loading = false; });
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   Color _statusColor(String s) => {

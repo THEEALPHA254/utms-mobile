@@ -1,3 +1,27 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// TRIP LIST + BOOKING CONFIRM
+//
+// Two screens live here:
+//   1. `TripListScreen`     — shows all trips on a given route + date, with a
+//                              date picker at the top and a "Book" button per
+//                              trip.
+//   2. `BookingConfirmScreen` — payment method selection (wallet vs M-Pesa),
+//                              optional "pay for a peer" toggle, then the
+//                              confirm-and-pay action.
+//
+// KEY CONCEPTS:
+//   • `showDatePicker` returns a `Future<DateTime?>` — null means the user
+//     dismissed the dialog, non-null means they picked a date.
+//   • `ListView.separated` — like ListView.builder but inserts a widget
+//     between items (used here for spacing between trip cards).
+//   • `context.go(path, extra: object)` — go_router's way to pass a complex
+//     object (like a booking Map) that can't be encoded in the URL.
+//   • Collection spread + collection-if in widget lists lets us conditionally
+//     add multiple widgets: `if (_paymentMethod == 'mpesa') ...[a, b, c]`.
+//   • The "extended if" checks below (`msg.contains('Insufficient')`) turn
+//     raw backend errors into UX-friendly messages.
+// ─────────────────────────────────────────────────────────────────────────────
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../services/api_service.dart';
@@ -24,10 +48,14 @@ class _TripListScreenState extends State<TripListScreen> {
     _load();
   }
 
+  // Fetch trips for the currently-selected date + route from the backend.
   Future<void> _load() async {
     setState(() => _loading = true);
+    // Build an ISO-format date string (YYYY-MM-DD) — the backend filter expects it.
     final dateStr =
         '${_selectedDate.year}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.day.toString().padLeft(2, '0')}';
+    // `widget.routeId` — inside a State, `widget` is the enclosing StatefulWidget,
+    // giving us access to whatever was passed via the constructor.
     final data = await apiService.getTrips(date: dateStr, routeId: widget.routeId);
     setState(() {
       _trips = data;
@@ -35,6 +63,8 @@ class _TripListScreenState extends State<TripListScreen> {
     });
   }
 
+  // Opens the native Material date picker dialog. Only allow bookings from
+  // today onward, up to 30 days in the future.
   Future<void> _pickDate() async {
     final d = await showDatePicker(
       context: context,
@@ -42,6 +72,7 @@ class _TripListScreenState extends State<TripListScreen> {
       firstDate: DateTime.now(),
       lastDate: DateTime.now().add(const Duration(days: 30)),
     );
+    // `d` is null if the user cancelled the dialog.
     if (d != null) {
       setState(() => _selectedDate = d);
       _load();
@@ -50,8 +81,12 @@ class _TripListScreenState extends State<TripListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cardColor = theme.cardColor;
+    final borderColor = theme.dividerColor.withOpacity(0.3);
+    final subTextColor = theme.textTheme.bodySmall?.color ?? Colors.grey;
+
     return Scaffold(
-      backgroundColor: AppTheme.surface,
       appBar: AppBar(title: const Text('Available Trips')),
       body: Column(
         children: [
@@ -64,7 +99,7 @@ class _TripListScreenState extends State<TripListScreen> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: cardColor,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: AppTheme.maroon.withOpacity(0.2)),
                 ),
@@ -110,9 +145,9 @@ class _TripListScreenState extends State<TripListScreen> {
                             return Container(
                               padding: const EdgeInsets.all(16),
                               decoration: BoxDecoration(
-                                color: Colors.white,
+                                color: cardColor,
                                 borderRadius: BorderRadius.circular(14),
-                                border: Border.all(color: Colors.grey.shade100),
+                                border: Border.all(color: borderColor),
                               ),
                               child: Row(
                                 children: [
@@ -138,7 +173,7 @@ class _TripListScreenState extends State<TripListScreen> {
                                         Text(
                                           'Bus ${bus?['bus_number']} · ${bus?['plate_number']}',
                                           style: TextStyle(
-                                              fontSize: 12, color: Colors.grey.shade600),
+                                              fontSize: 12, color: subTextColor),
                                         ),
                                         Text(
                                           '$avail seats left',
@@ -221,7 +256,10 @@ class _BookingConfirmScreenState extends State<BookingConfirmScreen> {
     super.dispose();
   }
 
+  // Called by the "Confirm & Pay" button. Sends the booking to the backend
+  // and navigates to the receipt on success.
   Future<void> _confirm() async {
+    // Lightweight client-side check so we don't waste a round trip.
     if (_paymentMethod == 'mpesa' && _phoneCtrl.text.isEmpty) {
       setState(() => _error = 'Enter your M-Pesa phone number.');
       return;
@@ -233,6 +271,8 @@ class _BookingConfirmScreenState extends State<BookingConfirmScreen> {
     });
 
     try {
+      // Collection-if inside the Map literal — extra keys are only added when
+      // the condition is true. Cleaner than building the map imperatively.
       final booking = await apiService.createBooking({
         'trip_id': widget.tripId,
         'payment_method': _paymentMethod,
@@ -241,10 +281,13 @@ class _BookingConfirmScreenState extends State<BookingConfirmScreen> {
           'student_admission': _admissionCtrl.text.trim(),
       });
 
+      // Guard against setState-after-dispose if the user left mid-request.
       if (!mounted) return;
-      // Navigate to receipt screen with the booking data
+      // Pass the full booking Map to the receipt screen via `extra` (the
+      // receipt renders the QR code and payment details from it).
       context.go('/home/receipt', extra: booking);
     } catch (e) {
+      // Translate the raw exception message into UX-friendly copy.
       final msg = e.toString();
       setState(() {
         _error = msg.contains('Insufficient')
@@ -259,8 +302,8 @@ class _BookingConfirmScreenState extends State<BookingConfirmScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cardColor = Theme.of(context).cardColor;
     return Scaffold(
-      backgroundColor: AppTheme.surface,
       appBar: AppBar(title: const Text('Confirm Booking')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
@@ -337,9 +380,10 @@ class _BookingConfirmScreenState extends State<BookingConfirmScreen> {
             // Pay for peer
             Container(
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: cardColor,
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.grey.shade100),
+                border: Border.all(
+                    color: Theme.of(context).dividerColor.withOpacity(0.3)),
               ),
               child: SwitchListTile(
                 title: const Text('Pay for a Peer',
@@ -437,10 +481,12 @@ class _Tile extends StatelessWidget {
             decoration: BoxDecoration(
               color: selected
                   ? AppTheme.maroon.withOpacity(0.08)
-                  : Colors.white,
+                  : Theme.of(context).cardColor,
               borderRadius: BorderRadius.circular(14),
               border: Border.all(
-                color: selected ? AppTheme.maroon : Colors.grey.shade200,
+                color: selected
+                    ? AppTheme.maroon
+                    : Theme.of(context).dividerColor.withOpacity(0.4),
                 width: selected ? 1.5 : 1,
               ),
             ),

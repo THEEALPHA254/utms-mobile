@@ -1,3 +1,22 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// HOME SCREEN — student dashboard shown after login
+//
+// KEY CONCEPTS:
+//   • `CustomScrollView` + `Sliver*` widgets = a scrollable area made of
+//     multiple scroll-aware pieces. `SliverAppBar` is the collapsing header
+//     with the maroon gradient; `SliverList` holds the cards below.
+//   • `initState()` runs ONCE when the widget is inserted into the tree —
+//     perfect place to kick off initial data loads.
+//   • `mounted` — a Stateful widget can be disposed while a Future is still
+//     pending. Calling `setState` after dispose crashes, so we guard with
+//     `if (mounted)` before every setState inside async code.
+//   • `Future.wait([...])` runs multiple async calls in PARALLEL and waits
+//     for them all — faster than awaiting one at a time.
+//   • `RefreshIndicator` gives us pull-to-refresh essentially for free —
+//     it just wraps a scrollable and calls `onRefresh` when the user drags
+//     from the top.
+// ─────────────────────────────────────────────────────────────────────────────
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -14,33 +33,52 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
-  Map<String, dynamic>? _balance;
-  List<dynamic> _upcoming = [];
-  bool _loading = true;
+  // Local UI state — kept in the widget (not a provider) because it's only
+  // read/written here on this one screen.
+  Map<String, dynamic>? _balance;   // wallet balance snapshot
+  List<dynamic> _upcoming = [];     // next 3 confirmed bookings
+  bool _loading = true;             // controls skeleton/spinner
+  bool _balanceVisible = true;      // toggled by the eye icon on the wallet card
 
+  // Called ONCE when this widget is first inserted into the tree — the ideal
+  // hook for one-shot initialisation like kicking off the first data load.
   @override
   void initState() {
     super.initState();
     _load();
   }
 
+  // Fetches the wallet balance and the user's bookings in parallel.
   Future<void> _load() async {
-    // Refresh unread count whenever home loads
+    // Refresh the notification badge count in the background.
     ref.read(unreadCountProvider.notifier).refresh();
-    try {
-      final results = await Future.wait([
-        apiService.getWalletBalance(),
-        apiService.getMyBookings(),
-      ]);
-      setState(() {
-        _balance  = results[0] as Map<String, dynamic>;
-        final bookings = results[1] as List;
-        _upcoming = bookings.where((b) => b['status'] == 'confirmed').take(3).toList();
-        _loading  = false;
-      });
-    } catch (_) {
-      setState(() => _loading = false);
-    }
+    setState(() => _loading = true);
+
+    // Run independently so one failure doesn't hide the other.
+    // `.then` handles success (updates state); `.catchError((_) {})` swallows
+    // errors silently so a wallet outage doesn't hide the bookings section
+    // (and vice-versa).
+    final balanceFuture = apiService.getWalletBalance().then((v) {
+      // `mounted` check: the user may have navigated away before this
+      // Future resolves — calling setState on a disposed widget crashes.
+      if (mounted) setState(() => _balance = v);
+    }).catchError((_) {});
+
+    final bookingsFuture = apiService.getMyBookings().then((bookings) {
+      if (mounted) {
+        setState(() {
+          // Show only up to 3 confirmed bookings on the home card.
+          _upcoming = bookings
+              .where((b) => b['status'] == 'confirmed')
+              .take(3)
+              .toList();
+        });
+      }
+    }).catchError((_) {});
+
+    // Wait for BOTH parallel futures to finish, then clear the loading flag.
+    await Future.wait([balanceFuture, bookingsFuture]);
+    if (mounted) setState(() => _loading = false);
   }
 
   @override
@@ -52,11 +90,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      // Pull-to-refresh: dragging down at the top of the list triggers _load().
       body: RefreshIndicator(
         color: AppTheme.maroon,
         onRefresh: _load,
+        // CustomScrollView + slivers = mix scroll-aware widgets (a collapsing
+        // header, a padded list, etc.) in a single scroll view.
         child: CustomScrollView(
           slivers: [
+            // Collapsing app bar with the branded gradient + user info.
             SliverAppBar(
               expandedHeight: 195,
               floating: false,
@@ -149,9 +191,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Widget _buildWalletCard() {
-    final bal = _balance == null
-        ? '—'
-        : 'KES ${double.parse(_balance!['balance'].toString()).toStringAsFixed(2)}';
+    final String balanceText;
+    if (_loading) {
+      balanceText = 'Loading...';
+    } else if (_balance == null) {
+      balanceText = 'Unavailable';
+    } else {
+      final amount = double.tryParse(_balance!['balance'].toString()) ?? 0.0;
+      balanceText = 'KES ${amount.toStringAsFixed(2)}';
+    }
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -176,16 +224,39 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Wallet Balance',
-                    style: TextStyle(color: Colors.white70, fontSize: 12)),
-                const SizedBox(height: 6),
-                Text(
-                  bal,
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold),
+                Row(
+                  children: [
+                    const Text('Wallet Balance',
+                        style: TextStyle(color: Colors.white70, fontSize: 12)),
+                    const SizedBox(width: 6),
+                    GestureDetector(
+                      onTap: () =>
+                          setState(() => _balanceVisible = !_balanceVisible),
+                      child: Icon(
+                        _balanceVisible
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
+                        color: Colors.white70,
+                        size: 16,
+                      ),
+                    ),
+                  ],
                 ),
+                const SizedBox(height: 6),
+                _loading
+                    ? const SizedBox(
+                        height: 24,
+                        width: 24,
+                        child: CircularProgressIndicator(
+                            color: Colors.white, strokeWidth: 2),
+                      )
+                    : Text(
+                        _balanceVisible ? balanceText : '••••••',
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold),
+                      ),
               ],
             ),
           ),
@@ -266,6 +337,8 @@ class _QA {
 }
 
 // ── Notification Bell with unread dot ────────────────────────────────────────
+// A `Stack` lets us layer widgets — here we drop a small green circle on top
+// of the bell icon at the top-right corner when unreadCount > 0.
 
 class _NotificationBell extends StatelessWidget {
   final int unreadCount;
